@@ -1,0 +1,370 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ==========================================
+// CATÁLOGOS GEOGRÁFICOS (jerárquicos)
+// ==========================================
+
+model Pais {
+  id                 String       @id @default(uuid())
+  nombre             String       @unique
+  estados            Estado[]
+
+  personas           Persona[]
+  estudiantesNacidos Estudiante[] @relation("PaisNacimiento")
+}
+
+model Estado {
+  id                 String       @id @default(uuid())
+  nombre             String
+  pais               Pais         @relation(fields: [paisId], references: [id])
+  paisId             String
+  municipios         Municipio[]
+
+  personas           Persona[]
+  estudiantesNacidos Estudiante[] @relation("EstadoNacimiento")
+}
+
+model Municipio {
+  id                 String       @id @default(uuid())
+  nombre             String
+  estado             Estado       @relation(fields: [estadoId], references: [id])
+  estadoId           String
+  parroquias         Parroquia[]
+
+  personas           Persona[]
+  estudiantesNacidos Estudiante[] @relation("MunicipioNacimiento")
+}
+
+model Parroquia {
+  id                 String       @id @default(uuid())
+  nombre             String
+  municipio          Municipio    @relation(fields: [municipioId], references: [id])
+  municipioId        String
+
+  personas           Persona[]
+  estudiantesNacidos Estudiante[] @relation("ParroquiaNacimiento")
+}
+
+// ==========================================
+// AUTENTICACIÓN Y ROLES (RBAC)
+// ==========================================
+
+model Usuario {
+  id               String            @id @default(uuid())
+  persona          Persona?          @relation(fields: [personaId], references: [id])
+  personaId        String?            @unique
+  email            String            @unique
+  password         String
+  activo           Boolean           @default(true)
+  emailVerificado  Boolean           @default(false)
+  createdAt        DateTime          @default(now())
+  updatedAt        DateTime          @updatedAt
+
+  roles            UsuarioRol[]
+  solicitudes      SolicitudIngreso[] // <-- Actualizado a arreglo (1 a muchos)
+  tokens           TokenAcceso[]
+  universidades   UsuarioUniversidad[]
+}
+
+model Rol {
+  id          String             @id @default(uuid())
+  nombre      String             @unique
+  descripcion String?
+
+  usuarios    UsuarioRol[]
+  permisos    RolModuloPermiso[]
+}
+
+model UsuarioRol {
+  id          String    @id @default(uuid())
+  usuario     Usuario   @relation(fields: [usuarioId], references: [id])
+  usuarioId   String
+  rol         Rol       @relation(fields: [rolId], references: [id])
+  rolId       String
+  fechaInicio DateTime  @default(now())
+  fechaFin    DateTime?
+
+  @@unique([usuarioId, rolId])
+}
+
+model Modulo {
+  id       String             @id @default(uuid())
+  nombre   String             @unique
+  slug     String             @unique
+  permisos RolModuloPermiso[]
+}
+
+model RolModuloPermiso {
+  id              String  @id @default(uuid())
+  rol             Rol     @relation(fields: [rolId], references: [id])
+  rolId           String
+  modulo          Modulo  @relation(fields: [moduloId], references: [id])
+  moduloId        String
+  puedeCrear      Boolean @default(false)
+  puedeLeer       Boolean @default(false)
+  puedeActualizar Boolean @default(false)
+  puedeEliminar   Boolean @default(false)
+
+  @@unique([rolId, moduloId])
+}
+
+enum TipoToken {
+  RESET_PASSWORD
+  VERIFICACION_EMAIL
+}
+
+model TokenAcceso {
+  id        String    @id @default(uuid())
+  usuario   Usuario   @relation(fields: [usuarioId], references: [id])
+  usuarioId String
+  token     String    @unique
+  tipo      TipoToken
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+}
+
+// ==========================================
+// PERSONA (base compartida entre Estudiante y Docente)
+// ==========================================
+
+enum Genero {
+  MASCULINO
+  FEMENINO
+}
+
+enum EstadoCivil {
+  SOLTERO
+  CASADO
+  DIVORCIADO
+  VIUDO
+  UNION_LIBRE
+}
+
+enum TipoVivienda {
+  RESIDENCIADO
+  VIVIENDA_PROPIA
+}
+
+model Persona {
+  id              String       @id @default(uuid())
+  cedula          String       @unique
+  nacionalidad    String
+  nombres         String
+  apellidos       String
+  genero          Genero
+  estadoCivil     EstadoCivil
+  fechaNacimiento DateTime
+  telefono        String
+  correo          String
+
+  // Dirección actual
+  pais            Pais         @relation(fields: [paisId], references: [id])
+  paisId          String
+  estado          Estado       @relation(fields: [estadoId], references: [id])
+  estadoId        String
+  municipio       Municipio    @relation(fields: [municipioId], references: [id])
+  municipioId     String
+  parroquia       Parroquia    @relation(fields: [parroquiaId], references: [id])
+  parroquiaId     String
+  localidad       String?
+  calle           String?
+  numeroCasa      String?
+  puntoReferencia String?
+  tipoVivienda    TipoVivienda
+
+  createdAt       DateTime     @default(now())
+  updatedAt       DateTime     @updatedAt
+
+  usuario         Usuario?
+  estudiante      Estudiante?
+}
+
+// ==========================================
+// ESTUDIANTES
+// ==========================================
+
+model CondicionMatricular {
+  id          String                @id @default(uuid())
+  nombre      String                @unique
+  descripcion String?
+
+  estudiantes EstudianteCondicion[]
+}
+
+model EstudianteCondicion {
+  id           String              @id @default(uuid())
+  estudiante   Estudiante          @relation(fields: [estudianteId], references: [id])
+  estudianteId String
+  condicion    CondicionMatricular @relation(fields: [condicionId], references: [id])
+  condicionId  String
+  fechaInicio  DateTime            @default(now())
+  fechaFin     DateTime?
+}
+
+model TipoIngreso {
+  id          String             @id @default(uuid())
+  nombre      String             @unique
+  descripcion String?
+
+  estudiantes Estudiante[]
+  solicitudes SolicitudIngreso[]
+}
+
+model Estudiante {
+  id                    String                @id @default(uuid())
+  persona               Persona               @relation(fields: [personaId], references: [id])
+  personaId             String                @unique
+  tipoIngreso           TipoIngreso           @relation(fields: [tipoIngresoId], references: [id])
+  tipoIngresoId         String
+
+  // Datos exclusivos
+  grupoEtnico           String?
+  paisNacimiento        Pais?                 @relation("PaisNacimiento", fields: [paisNacimientoId], references: [id])
+  paisNacimientoId      String?
+  estadoNacimiento      Estado?               @relation("EstadoNacimiento", fields: [estadoNacimientoId], references: [id])
+  estadoNacimientoId    String?
+  municipioNacimiento   Municipio?            @relation("MunicipioNacimiento", fields: [municipioNacimientoId], references: [id])
+  municipioNacimientoId String?
+  parroquiaNacimiento   Parroquia?            @relation("ParroquiaNacimiento", fields: [parroquiaNacimientoId], references: [id])
+  parroquiaNacimientoId String?
+
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+
+  condiciones           EstudianteCondicion[]
+  solicitudes           SolicitudIngreso[]    // <-- Actualizado a arreglo
+}
+
+// ==========================================
+// NIVELES ACADÉMICOS Y PROGRAMAS (Nuevo)
+// ==========================================
+
+model NivelAcademico {
+  id                   String              @id @default(uuid())
+  nombre               String              @unique 
+  descripcion          String?
+  
+  // Define si el estudiante puede cursar solo uno a la vez (ej: Pregrado = true)
+  requiereExclusividad Boolean             @default(false) 
+
+  programas            ProgramaFormacion[]
+}
+
+model ProgramaFormacion {
+  id               String             @id @default(uuid())
+  codigo           String             @unique 
+  nombre           String   
+  descripcion      String?
+  activo           Boolean            @default(true)
+  
+  nivelAcademico   NivelAcademico     @relation(fields: [nivelAcademicoId], references: [id])
+  nivelAcademicoId String
+  
+  universidad      Universidad    @relation(fields: [universidadId], references: [id])
+  universidadId    String
+  
+  solicitudes      SolicitudIngreso[] 
+  
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+}
+
+// ==========================================
+// PROCESO DE INGRESO (ASPIRANTES)
+// ==========================================
+
+model ConvocatoriaIngreso {
+  id          String             @id @default(uuid())
+  nombre      String
+  fechaInicio DateTime
+  fechaFin    DateTime
+  activa      Boolean            @default(true)
+
+  solicitudes SolicitudIngreso[]
+}
+
+model OrigenIngreso {
+  id          String             @id @default(uuid())
+  nombre      String             @unique
+  descripcion String?
+
+  solicitudes SolicitudIngreso[]
+}
+
+enum EstadoSolicitud {
+  PENDIENTE
+  EN_REVISION
+  CONFIRMADA
+  RECHAZADA
+  ANULADA
+}
+
+model SolicitudIngreso {
+  id                 String              @id @default(uuid())
+  usuario            Usuario             @relation(fields: [usuarioId], references: [id])
+  usuarioId          String              // <-- SE ELIMINÓ EL @unique PARA PERMITIR MÚLTIPLES
+  convocatoria       ConvocatoriaIngreso @relation(fields: [convocatoriaId], references: [id])
+  convocatoriaId     String
+  origen             OrigenIngreso       @relation(fields: [origenId], references: [id])
+  origenId           String
+  tipoIngreso        TipoIngreso         @relation(fields: [tipoIngresoId], references: [id])
+  tipoIngresoId      String
+  
+  // Especialidad seleccionada
+  especialidad       ProgramaFormacion   @relation(fields: [especialidadId], references: [id])
+  especialidadId     String
+  estado             EstadoSolicitud     @default(PENDIENTE)
+  
+  // Cuando se aprueba, se vincula al registro final del estudiante
+  estudiante         Estudiante?         @relation(fields: [estudianteId], references: [id])
+  estudianteId       String?             // <-- SE ELIMINÓ EL @unique (un estudiante puede tener varios postgrados)
+  expediente         Expediente?
+  createdAt          DateTime            @default(now())
+  updatedAt          DateTime            @updatedAt
+}
+
+model Universidad {
+  id          String   @id @default(uuid())
+  nombre      String   @unique
+  siglas      String   // Para mantener la identidad institucional (ej: UPTAEB)
+  ubicacion   String?
+  telefono    String?
+  correo      String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relaciones
+  programas   ProgramaFormacion[] // Una universidad tiene muchos programas
+  usuarios    UsuarioUniversidad[] // Relación muchos a muchos con usuarios
+}
+
+model UsuarioUniversidad {
+  id            String      @id @default(uuid())
+  usuario       Usuario     @relation(fields: [usuarioId], references: [id], onDelete: Cascade)
+  usuarioId     String
+  universidad   Universidad @relation(fields: [universidadId], references: [id], onDelete: Cascade)
+  universidadId String
+  
+  @@unique([usuarioId, universidadId]) // Evita duplicar la misma asignación
+}
+
+model Expediente {
+  id                  String           @id @default(uuid())
+  fileUrl             String           // Ruta única del PDF consolidado en MinIO
+  
+  // Lo vinculamos a la solicitud específica de ingreso (que ya sabe qué programa, nivel y universidad cursa)
+  solicitudIngresoId  String
+  solicitudIngreso    SolicitudIngreso @relation(fields: [solicitudIngresoId], references: [id], onDelete: Cascade)
+  
+  createdAt           DateTime         @default(now())
+  updatedAt           DateTime         @updatedAt
+
+  @@unique([solicitudIngresoId]) // Un expediente único consolidado por cada solicitud/proceso de inscripción
+}
