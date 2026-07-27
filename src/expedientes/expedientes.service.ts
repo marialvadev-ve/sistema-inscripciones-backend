@@ -49,7 +49,7 @@ export class ExpedientesService {
 
   // 2. Confirmar que el archivo subió a MinIO y guardarlo en la base de datos
   async confirmarSubida(solicitudIngresoId: string, filePath: string) {
-    const bucketName = 'expedientes-universidad'; // El bucket de tu MinioService
+    const bucketName = process.env.MINIO_BUCKET_NAME || 'expedientes-nuin'; // El bucket de tu MinioService
     const fileUrl = `${bucketName}/${filePath}`;
 
     const expedienteGuardado = await this.prisma.expediente.upsert({

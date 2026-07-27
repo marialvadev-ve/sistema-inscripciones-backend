@@ -7,6 +7,7 @@ import { ThrottlerGuard, ThrottlerModule } from '@nestjs/throttler';
 import { APP_GUARD } from '@nestjs/core';
 import { MinioModule } from './minio/minio.module';
 import { ExpedientesModule } from './expedientes/expedientes.module';
+import { ConfigModule } from '@nestjs/config';
 
 @Module({
   imports: [
@@ -19,9 +20,13 @@ import { ExpedientesModule } from './expedientes/expedientes.module';
         limit: 20, // Margen holgado para reintentos por intermitencia
       },
     ]),
+    ConfigModule.forRoot({
+      isGlobal: true, // <--- Esto hace que el ConfigService esté disponible en toda la app sin reimportarlo en cada módulo
+    }),
     AuthModule, 
     PrismaModule, 
-    MinioModule, ExpedientesModule
+    MinioModule, 
+    ExpedientesModule
   ],
   controllers: [AppController],
   providers: [

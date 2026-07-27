@@ -1,33 +1,41 @@
 import { Injectable, InternalServerErrorException, OnModuleInit } from '@nestjs/common';
+import { ConfigService } from '@nestjs/config';
 import * as Client from 'minio';
 
 @Injectable()
 export class MinioService implements OnModuleInit {
   private minioClient: Client.Client;
-  private readonly bucketName = 'expedientes-universidad';
+  private readonly bucketName: string = 'expedientes-nuin';
+  constructor(private readonly configService: ConfigService) {
+    this.bucketName = this.configService.get<string>('MINIO_BUCKET_NAME') || 'expedientes-nuin';
+  }
 
   onModuleInit() {
     this.minioClient = new Client.Client({
-      endPoint: process.env.MINIO_ENDPOINT || 'localhost',
-      port: parseInt(process.env.MINIO_PORT || '9000', 10),
-      useSSL: process.env.MINIO_USE_SSL === 'true',
-      accessKey: process.env.MINIO_ACCESS_KEY || 'minioadmin',
-      secretKey: process.env.MINIO_SECRET_KEY || 'minioadmin',
+      endPoint: this.configService.get<string>('MINIO_ENDPOINT') || 'localhost',
+      port: parseInt(this.configService.get<string>('MINIO_PORT') || '9000', 10),
+      useSSL: this.configService.get<string>('MINIO_USE_SSL') === 'true',
+      accessKey: this.configService.get<string>('MINIO_ACCESS_KEY') || 'minioadmin',
+      secretKey: this.configService.get<string>('MINIO_SECRET_KEY') || 'minioadmin',
     });
-
     this.ensureBucketExists();
   }
 
   private async ensureBucketExists() {
-    try {
-      const exists = await this.minioClient.bucketExists(this.bucketName);
-      if (!exists) {
-        await this.minioClient.makeBucket(this.bucketName, 'us-east-1');
-      }
-    } catch (error) {
-      throw new InternalServerErrorException('Error al inicializar el almacenamiento de archivos.');
+  try {
+    const bucketExists = await this.minioClient.bucketExists(this.bucketName);
+    if (!bucketExists) {
+      await this.minioClient.makeBucket(this.bucketName, process.env.AWS_REGION || 'us-east-1');
+      console.log(`Bucket '${this.bucketName}' creado exitosamente.`);
+    } else {
+      console.log(`El bucket '${this.bucketName}' ya existe.`);
     }
+  } catch (error) {
+    // 🔍 AQUÍ ESTÁ EL TRUCO: Imprimimos el error completo en la consola
+    console.error('❌ ERROR DETALLADO DE MINIO:', error);
+    throw new InternalServerErrorException('Error al inicializar el almacenamiento de archivos.');
   }
+}
 
   async getPresignedUploadUrl(
     universidad: string,
