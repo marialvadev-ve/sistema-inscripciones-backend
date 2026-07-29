@@ -1,7 +1,7 @@
-import { Injectable, NotFoundException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 import { MinioService } from '../minio/minio.service';
-import { CreateExpedienteDto } from './dto/create-expediente.dto';
+import { SolicitarUrlSubidaDto } from './dto/solicitar-url-subido.dto';
 
 @Injectable()
 export class ExpedientesService {
@@ -10,8 +10,8 @@ export class ExpedientesService {
     private readonly minioService: MinioService,
   ) {}
 
-  // 1. Generar la URL presignada para que el estudiante suba directo a MinIO
-  async obtenerUrlSubida(dto: CreateExpedienteDto) {
+  // 1. Generar la URL presignada para subir UNA imagen de UN tipo de documento
+  async obtenerUrlSubida(dto: SolicitarUrlSubidaDto) {
     const solicitud = await this.prisma.solicitudIngreso.findUnique({
       where: { id: dto.solicitudIngresoId },
       include: {
@@ -25,20 +25,30 @@ export class ExpedientesService {
       throw new NotFoundException('La solicitud de ingreso especificada no existe.');
     }
 
-    const universidad = solicitud.especialidad.universidad.siglas || 'UPTAEB';
-    const especialidad = solicitud.especialidad.nombre;
-    const lapsoAcademico = solicitud.convocatoria.nombre;
-    const cedula = solicitud.usuario?.persona?.cedula || 'sincedula';
-    const tipoDocumento = 'expedientenuevoingreso';
+    const tipoDocumento = await this.prisma.tipoDocumento.findUnique({
+      where: { id: dto.tipoDocumentoId },
+    });
 
-    // Llamamos a tu método existente en MinioService que calcula la ruta y la URL de subida
-    const { uploadUrl, filePath } = await this.minioService.getPresignedUploadUrl(
-      universidad,
-      especialidad,
-      lapsoAcademico,
-      cedula,
-      tipoDocumento,
-    );
+    if (!tipoDocumento) {
+      throw new NotFoundException('El tipo de documento especificado no existe.');
+    }
+
+    // Verificamos que no se exceda el máximo de imágenes permitido para este tipo de documento
+    if (tipoDocumento.maxImagenes && dto.orden > tipoDocumento.maxImagenes) {
+      throw new BadRequestException(
+        `Este documento admite máximo ${tipoDocumento.maxImagenes} imagen(es).`,
+      );
+    }
+
+    const uni = solicitud.especialidad.universidad.siglas.trim().toUpperCase();
+    const esp = solicitud.especialidad.nombre.trim().toLowerCase().replace(/\s+/g, '-');
+    const lapso = solicitud.convocatoria.nombre.trim();
+    const cedula = solicitud.usuario?.persona?.cedula || 'sin-cedula';
+    const tipoSlug = tipoDocumento.nombre.trim().toLowerCase().replace(/\s+/g, '-');
+
+    const filePath = `${uni}/${esp}/${lapso}/${cedula}/${tipoSlug}/${dto.orden}.${dto.extension}`;
+
+    const uploadUrl = await this.minioService.getPresignedUploadUrl(filePath);
 
     return {
       uploadUrl,
@@ -47,45 +57,83 @@ export class ExpedientesService {
     };
   }
 
-  // 2. Confirmar que el archivo subió a MinIO y guardarlo en la base de datos
-  async confirmarSubida(solicitudIngresoId: string, filePath: string) {
-    const bucketName = process.env.MINIO_BUCKET_NAME || 'expedientes-nuin'; // El bucket de tu MinioService
-    const fileUrl = `${bucketName}/${filePath}`;
+  // 2. Confirmar que una imagen específica ya se subió, y registrarla
+  async confirmarSubida(solicitudIngresoId: string, tipoDocumentoId: string, filePath: string, orden: number) {
+    const tipoDocumento = await this.prisma.tipoDocumento.findUnique({
+      where: { id: tipoDocumentoId },
+    });
 
-    const expedienteGuardado = await this.prisma.expediente.upsert({
-      where: { solicitudIngresoId },
-      update: { fileUrl },
+    if (!tipoDocumento) {
+      throw new NotFoundException('El tipo de documento especificado no existe.');
+    }
+
+    // Buscamos o creamos el "contenedor" de este tipo de documento para esta solicitud
+    const solicitudDocumento = await this.prisma.solicitudDocumento.upsert({
+      where: {
+        solicitudId_tipoDocumentoId: {
+          solicitudId: solicitudIngresoId,
+          tipoDocumentoId,
+        },
+      },
+      update: {},
       create: {
-        solicitudIngresoId,
-        fileUrl,
+        solicitudId: solicitudIngresoId,
+        tipoDocumentoId,
       },
     });
 
-    return {
-      message: 'Expediente registrado exitosamente en el sistema.',
-      expediente: expedienteGuardado,
-    };
-  }
-
-  // 3. Generar enlace de visualización en caliente para el funcionario (Transparente y sin errores de expiración)
-  async obtenerUrlVisualizacion(solicitudIngresoId: string) {
-    const expediente = await this.prisma.expediente.findUnique({
-      where: { solicitudIngresoId },
+    // Registramos la imagen puntual (esta página/foto específica)
+    await this.prisma.documentoImagen.create({
+      data: {
+        solicitudDocumentoId: solicitudDocumento.id,
+        key: filePath,
+        orden,
+      },
     });
 
-    if (!expediente || !expediente.fileUrl) {
-      throw new NotFoundException('No se encontró un expediente asociado a esta solicitud.');
+    // Si ya se alcanzó el mínimo de imágenes requeridas, marcamos el documento como SUBIDO
+    const totalImagenes = await this.prisma.documentoImagen.count({
+      where: { solicitudDocumentoId: solicitudDocumento.id },
+    });
+
+    if (totalImagenes >= tipoDocumento.minImagenes) {
+      await this.prisma.solicitudDocumento.update({
+        where: { id: solicitudDocumento.id },
+        data: { estado: 'SUBIDO' },
+      });
     }
 
-    // Extraemos la ruta limpia removiendo el nombre del bucket del inicio de fileUrl
-    const filePath = expediente.fileUrl.substring(expediente.fileUrl.indexOf('/') + 1);
+    return { message: 'Documento registrado exitosamente.' };
+  }
 
-    // Generamos un enlace fresco de 10 minutos al vuelo
-    const viewUrl = await this.minioService.getPresignedViewUrl(filePath);
+  // 3. El funcionario ve TODO el expediente: cada tipo de documento con todas sus imágenes
+  async obtenerExpedienteCompleto(solicitudIngresoId: string) {
+    const documentos = await this.prisma.solicitudDocumento.findMany({
+      where: { solicitudId: solicitudIngresoId },
+      include: {
+        tipoDocumento: true,
+        imagenes: { orderBy: { orden: 'asc' } },
+      },
+    });
 
-    return {
-      viewUrl,
-      message: 'Enlace de visualización generado con éxito.',
-    };
+    if (documentos.length === 0) {
+      throw new NotFoundException('No se encontraron documentos para esta solicitud.');
+    }
+
+    // Generamos una URL de visualización fresca para cada imagen, todas al mismo tiempo
+    const documentosConUrls = await Promise.all(
+      documentos.map(async (doc) => ({
+        tipoDocumento: doc.tipoDocumento.nombre,
+        estado: doc.estado,
+        imagenes: await Promise.all(
+          doc.imagenes.map(async (img) => ({
+            orden: img.orden,
+            viewUrl: await this.minioService.getPresignedViewUrl(img.key),
+          })),
+        ),
+      })),
+    );
+
+    return { documentos: documentosConUrls };
   }
 }

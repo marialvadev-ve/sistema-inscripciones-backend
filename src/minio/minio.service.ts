@@ -37,31 +37,13 @@ export class MinioService implements OnModuleInit {
   }
 }
 
-  async getPresignedUploadUrl(
-    universidad: string,
-    especialidad: string,
-    lapsoAcademico: string,
-    cedulaOId: string,
-    tipoDocumento: string,
-  ): Promise<{ uploadUrl: string; filePath: string }> {
+  async getPresignedUploadUrl(filePath: string): Promise<string> {
     try {
-      const uni = universidad.trim().toUpperCase();
-      const esp = especialidad.trim().toLowerCase().replace(/\s+/g, '-');
-      const lapso = lapsoAcademico.trim();
-      const fileName = `${cedulaOId}_${tipoDocumento}.pdf`;
-      const filePath = `${uni}/${esp}/${lapso}/${fileName}`;
-
       const expirySeconds = 60 * 5;
-      const uploadUrl = await this.minioClient.presignedPutObject(
-        this.bucketName,
-        filePath,
-        expirySeconds,
-      );
-
-      return { uploadUrl, filePath };
+      return await this.minioClient.presignedPutObject(this.bucketName, filePath, expirySeconds);
     } catch (error) {
-      // Lanzamos una excepción controlada que el GlobalExceptionFilter transformará para el frontend
-      throw new InternalServerErrorException('No se pudo generar la URL de subida del expediente.');
+      console.error('Error generando URL de subida:', error);
+      throw new InternalServerErrorException('No se pudo generar la URL de subida del documento.');
     }
   }
 

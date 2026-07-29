@@ -7,20 +7,23 @@ export class GlobalExceptionFilter implements ExceptionFilter {
   catch(exception: any, host: ArgumentsHost) {
     const ctx = host.switchToHttp();
     const response = ctx.getResponse<Response>();
-    
+
     let status = HttpStatus.INTERNAL_SERVER_ERROR;
     let message = 'Error interno del servidor';
-    let errors = {}; 
+    let errors = {};
 
     if (exception instanceof HttpException) {
       status = exception.getStatus();
       const exceptionResponse: any = exception.getResponse();
-      message = exceptionResponse.error || 'Error de petición';
-      
-      if (Array.isArray(exceptionResponse.message)) {
-        errors = { detalle: exceptionResponse.message };
+
+      // El mensaje general ahora depende del tipo de error, no del texto en inglés que da NestJS por defecto
+      message = this.obtenerMensajePorStatus(status);
+
+      const mensajeOriginal = exceptionResponse?.message;
+      if (Array.isArray(mensajeOriginal)) {
+        errors = { detalle: mensajeOriginal };
       } else {
-        errors = { causa: exceptionResponse.message };
+        errors = { causa: mensajeOriginal || exceptionResponse?.error || 'Error de petición' };
       }
     } else if (exception instanceof Prisma.PrismaClientKnownRequestError) {
       if (exception.code === 'P2002') {
@@ -40,5 +43,19 @@ export class GlobalExceptionFilter implements ExceptionFilter {
       message,
       errors,
     });
+  }
+
+  private obtenerMensajePorStatus(status: number): string {
+    const mensajes: Record<number, string> = {
+      400: 'Solicitud inválida',
+      401: 'No autorizado',
+      403: 'Acceso denegado',
+      404: 'Recurso no encontrado',
+      409: 'Conflicto de duplicidad',
+      410: 'Recurso ya no disponible',
+      422: 'Datos no procesables',
+      500: 'Error interno del servidor',
+    };
+    return mensajes[status] || 'Error de petición';
   }
 }

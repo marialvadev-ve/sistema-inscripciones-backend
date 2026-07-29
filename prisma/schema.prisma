@@ -56,20 +56,20 @@ model Parroquia {
 // ==========================================
 
 model Usuario {
-  id               String            @id @default(uuid())
-  persona          Persona?          @relation(fields: [personaId], references: [id])
+  id               String             @id @default(uuid())
+  persona          Persona?           @relation(fields: [personaId], references: [id])
   personaId        String?            @unique
-  email            String            @unique
+  email            String             @unique
   password         String
-  activo           Boolean           @default(true)
-  emailVerificado  Boolean           @default(false)
-  createdAt        DateTime          @default(now())
-  updatedAt        DateTime          @updatedAt
+  activo           Boolean            @default(true)
+  emailVerificado  Boolean            @default(false)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
 
   roles            UsuarioRol[]
-  solicitudes      SolicitudIngreso[] // <-- Actualizado a arreglo (1 a muchos)
+  solicitudes      SolicitudIngreso[]
   tokens           TokenAcceso[]
-  universidades   UsuarioUniversidad[]
+  universidades    UsuarioUniversidad[]
 }
 
 model Rol {
@@ -82,15 +82,17 @@ model Rol {
 }
 
 model UsuarioRol {
-  id          String    @id @default(uuid())
-  usuario     Usuario   @relation(fields: [usuarioId], references: [id])
-  usuarioId   String
-  rol         Rol       @relation(fields: [rolId], references: [id])
-  rolId       String
-  fechaInicio DateTime  @default(now())
-  fechaFin    DateTime?
+  id            String       @id @default(uuid())
+  usuario       Usuario      @relation(fields: [usuarioId], references: [id])
+  usuarioId     String
+  rol           Rol          @relation(fields: [rolId], references: [id])
+  rolId         String
+  universidad   Universidad? @relation(fields: [universidadId], references: [id])
+  universidadId String?
+  fechaInicio   DateTime     @default(now())
+  fechaFin      DateTime?
 
-  @@unique([usuarioId, rolId])
+  @@unique([usuarioId, rolId, universidadId])
 }
 
 model Modulo {
@@ -164,7 +166,6 @@ model Persona {
   telefono        String
   correo          String
 
-  // Dirección actual
   pais            Pais         @relation(fields: [paisId], references: [id])
   paisId          String
   estado          Estado       @relation(fields: [estadoId], references: [id])
@@ -224,7 +225,6 @@ model Estudiante {
   tipoIngreso           TipoIngreso           @relation(fields: [tipoIngresoId], references: [id])
   tipoIngresoId         String
 
-  // Datos exclusivos
   grupoEtnico           String?
   paisNacimiento        Pais?                 @relation("PaisNacimiento", fields: [paisNacimientoId], references: [id])
   paisNacimientoId      String?
@@ -239,39 +239,37 @@ model Estudiante {
   updatedAt             DateTime              @updatedAt
 
   condiciones           EstudianteCondicion[]
-  solicitudes           SolicitudIngreso[]    // <-- Actualizado a arreglo
+  solicitudes           SolicitudIngreso[]
 }
 
 // ==========================================
-// NIVELES ACADÉMICOS Y PROGRAMAS (Nuevo)
+// NIVELES ACADÉMICOS Y PROGRAMAS
 // ==========================================
 
 model NivelAcademico {
   id                   String              @id @default(uuid())
-  nombre               String              @unique 
+  nombre               String              @unique
   descripcion          String?
-  
-  // Define si el estudiante puede cursar solo uno a la vez (ej: Pregrado = true)
-  requiereExclusividad Boolean             @default(false) 
+  requiereExclusividad Boolean             @default(false)
 
   programas            ProgramaFormacion[]
 }
 
 model ProgramaFormacion {
   id               String             @id @default(uuid())
-  codigo           String             @unique 
-  nombre           String   
+  codigo           String             @unique
+  nombre           String
   descripcion      String?
   activo           Boolean            @default(true)
-  
+
   nivelAcademico   NivelAcademico     @relation(fields: [nivelAcademicoId], references: [id])
   nivelAcademicoId String
-  
-  universidad      Universidad    @relation(fields: [universidadId], references: [id])
+
+  universidad      Universidad        @relation(fields: [universidadId], references: [id])
   universidadId    String
-  
-  solicitudes      SolicitudIngreso[] 
-  
+
+  solicitudes      SolicitudIngreso[]
+
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
 }
@@ -309,23 +307,21 @@ enum EstadoSolicitud {
 model SolicitudIngreso {
   id                 String              @id @default(uuid())
   usuario            Usuario             @relation(fields: [usuarioId], references: [id])
-  usuarioId          String              // <-- SE ELIMINÓ EL @unique PARA PERMITIR MÚLTIPLES
+  usuarioId          String
   convocatoria       ConvocatoriaIngreso @relation(fields: [convocatoriaId], references: [id])
   convocatoriaId     String
   origen             OrigenIngreso       @relation(fields: [origenId], references: [id])
   origenId           String
   tipoIngreso        TipoIngreso         @relation(fields: [tipoIngresoId], references: [id])
   tipoIngresoId      String
-  
-  // Especialidad seleccionada
+
   especialidad       ProgramaFormacion   @relation(fields: [especialidadId], references: [id])
   especialidadId     String
   estado             EstadoSolicitud     @default(PENDIENTE)
-  
-  // Cuando se aprueba, se vincula al registro final del estudiante
+
   estudiante         Estudiante?         @relation(fields: [estudianteId], references: [id])
-  estudianteId       String?             // <-- SE ELIMINÓ EL @unique (un estudiante puede tener varios postgrados)
-  expediente         Expediente?
+  estudianteId       String?
+  documentos         SolicitudDocumento[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
 }
@@ -333,16 +329,17 @@ model SolicitudIngreso {
 model Universidad {
   id          String   @id @default(uuid())
   nombre      String   @unique
-  siglas      String   // Para mantener la identidad institucional (ej: UPTAEB)
+  siglas      String
   ubicacion   String?
   telefono    String?
   correo      String?
   createdAt   DateTime @default(now())
   updatedAt   DateTime @updatedAt
 
-  // Relaciones
-  programas   ProgramaFormacion[] // Una universidad tiene muchos programas
-  usuarios    UsuarioUniversidad[] // Relación muchos a muchos con usuarios
+  programas       ProgramaFormacion[]
+  usuarios        UsuarioUniversidad[]
+  rolesAsignados  UsuarioRol[]
+  tiposDocumento  TipoDocumento[]
 }
 
 model UsuarioUniversidad {
@@ -351,20 +348,57 @@ model UsuarioUniversidad {
   usuarioId     String
   universidad   Universidad @relation(fields: [universidadId], references: [id], onDelete: Cascade)
   universidadId String
-  
-  @@unique([usuarioId, universidadId]) // Evita duplicar la misma asignación
+
+  @@unique([usuarioId, universidadId])
 }
 
-model Expediente {
-  id                  String           @id @default(uuid())
-  fileUrl             String           // Ruta única del PDF consolidado en MinIO
-  
-  // Lo vinculamos a la solicitud específica de ingreso (que ya sabe qué programa, nivel y universidad cursa)
-  solicitudIngresoId  String
-  solicitudIngreso    SolicitudIngreso @relation(fields: [solicitudIngresoId], references: [id], onDelete: Cascade)
-  
-  createdAt           DateTime         @default(now())
-  updatedAt           DateTime         @updatedAt
+// ==========================================
+// DOCUMENTOS DEL EXPEDIENTE (catálogo dinámico por universidad)
+// ==========================================
 
-  @@unique([solicitudIngresoId]) // Un expediente único consolidado por cada solicitud/proceso de inscripción
+model TipoDocumento {
+  id            String      @id @default(uuid())
+  universidad   Universidad @relation(fields: [universidadId], references: [id])
+  universidadId String
+  nombre        String
+  descripcion   String?
+  minImagenes   Int         @default(1)
+  maxImagenes   Int?
+  obligatorio   Boolean     @default(true)
+  activo        Boolean     @default(true)
+  orden         Int         @default(0)
+
+  documentosSolicitud SolicitudDocumento[]
+
+  @@unique([universidadId, nombre])
+}
+
+enum EstadoDocumento {
+  PENDIENTE
+  SUBIDO
+  RECHAZADO
+}
+
+model SolicitudDocumento {
+  id              String           @id @default(uuid())
+  solicitud       SolicitudIngreso @relation(fields: [solicitudId], references: [id], onDelete: Cascade)
+  solicitudId     String
+  tipoDocumento   TipoDocumento    @relation(fields: [tipoDocumentoId], references: [id])
+  tipoDocumentoId String
+  estado          EstadoDocumento  @default(PENDIENTE)
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+
+  imagenes        DocumentoImagen[]
+
+  @@unique([solicitudId, tipoDocumentoId])
+}
+
+model DocumentoImagen {
+  id                   String             @id @default(uuid())
+  solicitudDocumento   SolicitudDocumento @relation(fields: [solicitudDocumentoId], references: [id], onDelete: Cascade)
+  solicitudDocumentoId String
+  key                  String
+  orden                Int                @default(1)
+  createdAt            DateTime           @default(now())
 }
