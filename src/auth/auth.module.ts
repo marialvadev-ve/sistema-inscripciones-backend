@@ -9,13 +9,12 @@ import { PassportModule } from '@nestjs/passport';
   imports: [
     PassportModule,
     JwtModule.register({
-      secret: process.env.JWT_SECRET || 'tu_clave_secreta_super_segura59350d1f428a095dd1bb5228b8756f5aa2',
-      signOptions: { expiresIn: '15m' }, // Token de corta duración como acordamos
+      secret: process.env.JWT_SECRET,
+      signOptions: { expiresIn: '15m' },
     }),
   ],
-
   controllers: [AuthController],
-  providers: [AuthService, JwtStrategy], // <-- Aquí se registra la estrategia
+  providers: [AuthService, JwtStrategy],
   exports: [JwtModule, AuthService],
 })
 export class AuthModule {}

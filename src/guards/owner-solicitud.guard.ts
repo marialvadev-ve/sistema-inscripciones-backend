@@ -1,4 +1,4 @@
-import { Injectable, CanActivate, ExecutionContext, 
+import { Injectable, CanActivate, ExecutionContext,
     NotFoundException, ForbiddenException } from '@nestjs/common';
 import { PrismaService } from '../prisma/prisma.service';
 
@@ -8,31 +8,35 @@ export class OwnerSolicitudGuard implements CanActivate {
 
   async canActivate(context: ExecutionContext): Promise<boolean> {
     const request = context.switchToHttp().getRequest();
-    const user = request.user; // Extraído previamente por el JwtAuthGuard
+    const user = request.user;
     const body = request.body;
     const params = request.params;
 
-    // El ID de la solicitud puede venir en los parámetros de la URL (ej: /expedientes/:id) 
-    // o en el cuerpo de la petición (ej: solicitudIngresoId)
-    const solicitudId = params.id || params.solicitudId || body.solicitudIngresoId;
+    const solicitudId = params.id || params.solicitudId || params.solicitudIngresoId || body?.solicitudIngresoId;
 
     if (!solicitudId) {
       throw new NotFoundException('No se proporcionó el ID de la solicitud de ingreso');
     }
 
-    // Buscamos la solicitud en la base de datos
     const solicitud = await this.prisma.solicitudIngreso.findUnique({
       where: { id: solicitudId },
-      select: { id: true, usuarioId: true },
+      select: {
+        id: true,
+        usuarioId: true,
+        especialidad: { select: { universidadId: true } },
+      },
     });
 
     if (!solicitud) {
       throw new NotFoundException('La solicitud de ingreso no existe');
     }
 
-    // Si el usuario es ADMIN o CONTROL_ESTUDIOS (puedes validar por roles en el token), se le permite el paso.
-    // Si es un ASPIRANTE común, validamos estrictamente que sea el dueño de la solicitud.
-    const esPersonalAutorizado = user.roles?.includes('ADMIN') || user.roles?.includes('CONTROL_ESTUDIOS');
+    const esAdminGlobal = user.roles?.some((r: any) => r.nombre === 'ADMIN' && r.universidadId === null);
+    const esControlDeEstaUniversidad = user.roles?.some(
+      (r: any) => r.nombre === 'CONTROL_ESTUDIOS' && r.universidadId === solicitud.especialidad.universidadId,
+    );
+
+    const esPersonalAutorizado = esAdminGlobal || esControlDeEstaUniversidad;
 
     if (!esPersonalAutorizado && solicitud.usuarioId !== user.sub) {
       throw new ForbiddenException('No tienes permisos para modificar o acceder a esta solicitud ajena');

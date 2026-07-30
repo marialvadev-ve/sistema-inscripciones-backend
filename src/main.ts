@@ -6,7 +6,9 @@ import { GlobalExceptionFilter } from './common/filters/global-exception.filter'
 
 async function bootstrap() {
   const app = await NestFactory.create(AppModule);
-
+  if (!process.env.JWT_SECRET) {
+    throw new Error('JWT_SECRET no está definido en las variables de entorno. La aplicación no puede arrancar sin esto.');
+  }
   // Activamos el Interceptor de respuestas exitosas
   app.useGlobalInterceptors(new TransformInterceptor());
 

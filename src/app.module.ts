@@ -8,6 +8,10 @@ import { APP_GUARD } from '@nestjs/core';
 import { MinioModule } from './minio/minio.module';
 import { ExpedientesModule } from './expedientes/expedientes.module';
 import { ConfigModule } from '@nestjs/config';
+import { CatalogoModule } from './catalogo/catalogo.module';
+import { ZonasGeograficasModule } from './zonas-geograficas/zonas-geograficas.module';
+import { NivelAcademicoModule } from './nivel-academico/nivel-academico.module';
+import { IngresosModule } from './ingresos/ingresos.module';
 
 @Module({
   imports: [
@@ -26,7 +30,7 @@ import { ConfigModule } from '@nestjs/config';
     AuthModule, 
     PrismaModule, 
     MinioModule, 
-    ExpedientesModule
+    ExpedientesModule, CatalogoModule, ZonasGeograficasModule, NivelAcademicoModule, IngresosModule
   ],
   controllers: [AppController],
   providers: [

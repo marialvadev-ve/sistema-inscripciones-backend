@@ -210,12 +210,16 @@ model EstudianteCondicion {
 }
 
 model TipoIngreso {
-  id          String             @id @default(uuid())
-  nombre      String             @unique
-  descripcion String?
+  id            String             @id @default(uuid())
+  universidad   Universidad        @relation(fields: [universidadId], references: [id])
+  universidadId String
+  nombre        String
+  descripcion   String?
 
-  estudiantes Estudiante[]
-  solicitudes SolicitudIngreso[]
+  estudiantes   Estudiante[]
+  solicitudes   SolicitudIngreso[]
+
+  @@unique([universidadId, nombre])
 }
 
 model Estudiante {
@@ -279,21 +283,29 @@ model ProgramaFormacion {
 // ==========================================
 
 model ConvocatoriaIngreso {
-  id          String             @id @default(uuid())
-  nombre      String
-  fechaInicio DateTime
-  fechaFin    DateTime
-  activa      Boolean            @default(true)
+  id            String             @id @default(uuid())
+  universidad   Universidad        @relation(fields: [universidadId], references: [id])
+  universidadId String
+  nombre        String
+  fechaInicio   DateTime
+  fechaFin      DateTime
+  activa        Boolean            @default(true)
 
-  solicitudes SolicitudIngreso[]
+  solicitudes   SolicitudIngreso[]
+
+  @@unique([universidadId, nombre])
 }
 
 model OrigenIngreso {
-  id          String             @id @default(uuid())
-  nombre      String             @unique
-  descripcion String?
+  id            String             @id @default(uuid())
+  universidad   Universidad        @relation(fields: [universidadId], references: [id])
+  universidadId String
+  nombre        String
+  descripcion   String?
 
-  solicitudes SolicitudIngreso[]
+  solicitudes   SolicitudIngreso[]
+
+  @@unique([universidadId, nombre])
 }
 
 enum EstadoSolicitud {
@@ -340,6 +352,9 @@ model Universidad {
   usuarios        UsuarioUniversidad[]
   rolesAsignados  UsuarioRol[]
   tiposDocumento  TipoDocumento[]
+  convocatorias   ConvocatoriaIngreso[]
+  origenesIngreso OrigenIngreso[]
+  tiposIngreso    TipoIngreso[]
 }
 
 model UsuarioUniversidad {

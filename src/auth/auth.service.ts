@@ -92,9 +92,8 @@ export class AuthService {
         return { message: 'Correo verificado exitosamente. Ya puedes continuar con tu proceso de ingreso.' };
     }
 
-    async login(loginDto: LoginDto) {
+   async login(loginDto: LoginDto) {
         const { email, password } = loginDto;
-        // Buscamos al usuario con sus roles y su vinculación institucional multi-universidad[cite: 1]
         const usuario = await this.prismaService.usuario.findUnique({
             where: { email },
             include: {
@@ -113,14 +112,17 @@ export class AuthService {
         if (!passwordValid) {
             throw new UnauthorizedException('Credenciales inválidas');
         }
-        // Payload optimizado y ligero para consultas concurrentes
+
+        // Cada rol viaja junto con la universidad donde aplica (null = rol global)
         const payload = {
             sub: usuario.id,
             email: usuario.email,
-            roles: usuario.roles.map((ur) => ur.rol.nombre),
-            universidades: usuario.universidades.map((uu) => uu.universidadId),
+            roles: usuario.roles.map((ur) => ({
+                nombre: ur.rol.nombre,
+                universidadId: ur.universidadId,
+            })),
         };
-        // Access Token de corta duración (15 min) y Refresh Token seguro (7 días)
+
         const accessToken = this.jwtService.sign(payload, { expiresIn: '15m' });
         const refreshToken = this.jwtService.sign({ sub: usuario.id }, { expiresIn: '7d' });
         return {
