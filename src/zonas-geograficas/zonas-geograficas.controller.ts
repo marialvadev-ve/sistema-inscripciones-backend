@@ -2,6 +2,7 @@ import { Body, Controller, Get, Param, Post, UseGuards } from '@nestjs/common';
 import { ZonasGeograficasService } from './zonas-geograficas.service';
 import { CrearEstadoDto, CrearMunicipioDto, CrearPaisDto, CrearParroquiaDto } from './dto/geografia.dto';
 import { JwtAuthGuard } from 'src/auth/guardas/jwt-auth.guards';
+import { SuperAdminGuard } from 'src/guards/super-admin.guard';
 
 @Controller('zonas-geograficas')
 @UseGuards(JwtAuthGuard)
@@ -28,23 +29,26 @@ export class ZonasGeograficasController {
     return this.geografiaService.obtenerParroquiasPorMunicipio(municipioId);
   }
 
-  // Nota: Los endpoints POST de creación puedes protegerlos con SuperAdminGuard posteriormente
   @Post('pais')
+  @UseGuards(SuperAdminGuard)
   async crearPais(@Body() dto: CrearPaisDto) {
     return this.geografiaService.crearPais(dto);
   }
 
   @Post('estado')
+  @UseGuards(SuperAdminGuard)
   async crearEstado(@Body() dto: CrearEstadoDto) {
     return this.geografiaService.crearEstado(dto);
   }
 
   @Post('municipio')
+  @UseGuards(SuperAdminGuard)
   async crearMunicipio(@Body() dto: CrearMunicipioDto) {
     return this.geografiaService.crearMunicipio(dto);
   }
 
   @Post('parroquia')
+  @UseGuards(SuperAdminGuard)
   async crearParroquia(@Body() dto: CrearParroquiaDto) {
     return this.geografiaService.crearParroquia(dto);
   }

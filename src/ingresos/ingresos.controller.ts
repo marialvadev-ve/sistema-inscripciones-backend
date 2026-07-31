@@ -1,4 +1,3 @@
-// src/modulos/ingresos/ingresos.controller.ts
 import { Controller, Get, Post, Body, Param, UseGuards } from '@nestjs/common';
 import { IngresosService } from './ingresos.service';
 import { JwtAuthGuard } from 'src/auth/guardas/jwt-auth.guards';

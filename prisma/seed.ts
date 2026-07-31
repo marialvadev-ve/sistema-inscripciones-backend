@@ -25,7 +25,8 @@ async function main() {
     { nombre: 'ASPIRANTE', descripcion: 'Usuario en proceso de admisión' },
     { nombre: 'ESTUDIANTE', descripcion: 'Estudiante regular matriculado' },
     { nombre: 'CONTROL_ESTUDIOS', descripcion: 'Personal administrativo de control de estudios' },
-    { nombre: 'ADMIN', descripcion: 'Administrador total del sistema' },
+    { nombre: 'ADMIN', descripcion: 'Administrador de una universidad específica' },
+    { nombre: 'SUPER_ADMIN', descripcion: 'Administrador global de toda la plataforma' },
   ];
 
   for (const rol of roles) {
