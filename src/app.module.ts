@@ -12,6 +12,9 @@ import { CatalogoModule } from './catalogo/catalogo.module';
 import { ZonasGeograficasModule } from './zonas-geograficas/zonas-geograficas.module';
 import { NivelAcademicoModule } from './nivel-academico/nivel-academico.module';
 import { IngresosModule } from './ingresos/ingresos.module';
+import { EmailModule } from './email/email.module';
+import { UniversidadesModule } from './universidades/universidades.module';
+import { PersonasModule } from './personas/personas.module';
 
 @Module({
   imports: [
@@ -30,7 +33,14 @@ import { IngresosModule } from './ingresos/ingresos.module';
     AuthModule, 
     PrismaModule, 
     MinioModule, 
-    ExpedientesModule, CatalogoModule, ZonasGeograficasModule, NivelAcademicoModule, IngresosModule
+    ExpedientesModule, 
+    CatalogoModule, 
+    ZonasGeograficasModule, 
+    NivelAcademicoModule, 
+    IngresosModule, 
+    EmailModule, 
+    UniversidadesModule, 
+    PersonasModule,
   ],
   controllers: [AppController],
   providers: [

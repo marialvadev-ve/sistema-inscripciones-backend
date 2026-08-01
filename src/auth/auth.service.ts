@@ -1,5 +1,5 @@
-import { BadRequestException, ForbiddenException, GoneException, Injectable, 
-    NotFoundException, 
+import { BadRequestException, ForbiddenException, GoneException, Injectable,
+    NotFoundException,
     UnauthorizedException} from '@nestjs/common';
 import { JwtService } from '@nestjs/jwt';
 import { PrismaService } from 'src/prisma/prisma.service';
@@ -7,12 +7,16 @@ import { RegistroUsuarioDto } from './dto/registro-usuario.dto';
 import * as bcrypt from 'bcrypt';
 import { randomBytes } from 'crypto';
 import { LoginDto } from './dto/login.dto';
+import { EmailService } from 'src/email/email.service';
+import { SolicitarResetDto } from 'src/email/dto/solicitar-reset.dto';
+import { ResetearPasswordDto } from 'src/email/dto/resetear-password.dto';
 
 @Injectable()
 export class AuthService {
     constructor(
         private readonly prismaService: PrismaService,
         private jwtService: JwtService,
+        private readonly emailService: EmailService,
     ){}
 
     async registrar(dto: RegistroUsuarioDto){
@@ -26,7 +30,6 @@ export class AuthService {
                 roles: {
                     create: {
                         rol: { connect: { nombre: 'ASPIRANTE' } }
-                        // universidadId queda en null a propósito: el rol ASPIRANTE es global
                     }
                 }
             },
@@ -35,49 +38,40 @@ export class AuthService {
             }
         });
 
-        // Generamos el token de verificación de correo
         const token = randomBytes(32).toString('hex');
         await this.prismaService.tokenAcceso.create({
             data: {
                 usuarioId: nuevoUsuario.id,
                 token,
                 tipo: 'VERIFICACION_EMAIL',
-                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000), // 24 horas
+                expiresAt: new Date(Date.now() + 24 * 60 * 60 * 1000),
             },
         });
 
-        // TODO: aquí se engancha el envío real del correo (lo resolvemos cuando montemos el servicio de email)
-        // Por ahora, lo dejamos disponible para pruebas manuales:
-        console.log(`Token de verificación para ${dto.email}: ${token}`);
+        await this.emailService.enviarVerificacionEmail(dto.email, token);
 
         const { password, ...usuarioLimpio } = nuevoUsuario;
         return usuarioLimpio;
     }
 
     async verificarEmail(token: string) {
-        // 1. Buscamos el token exacto
         const tokenAcceso = await this.prismaService.tokenAcceso.findUnique({
             where: { token },
         });
 
-        // 2. Validaciones, en orden de especificidad
         if (!tokenAcceso) {
             throw new NotFoundException('El enlace de verificación no es válido.');
         }
-
         if (tokenAcceso.tipo !== 'VERIFICACION_EMAIL') {
             throw new BadRequestException('Este enlace no corresponde a una verificación de correo.');
         }
-
         if (tokenAcceso.usedAt) {
             throw new GoneException('Este enlace ya fue utilizado anteriormente.');
         }
-
         if (tokenAcceso.expiresAt < new Date()) {
             throw new GoneException('El enlace de verificación ha expirado. Solicita uno nuevo.');
         }
 
-        // 3. Todo válido: marcamos el correo como verificado Y el token como usado, en una sola operación atómica
         await this.prismaService.$transaction([
             this.prismaService.usuario.update({
                 where: { id: tokenAcceso.usuarioId },
@@ -92,7 +86,7 @@ export class AuthService {
         return { message: 'Correo verificado exitosamente. Ya puedes continuar con tu proceso de ingreso.' };
     }
 
-   async login(loginDto: LoginDto) {
+    async login(loginDto: LoginDto) {
         const { email, password } = loginDto;
         const usuario = await this.prismaService.usuario.findUnique({
             where: { email },
@@ -113,7 +107,6 @@ export class AuthService {
             throw new UnauthorizedException('Credenciales inválidas');
         }
 
-        // Cada rol viaja junto con la universidad donde aplica (null = rol global)
         const payload = {
             sub: usuario.id,
             email: usuario.email,
@@ -140,5 +133,62 @@ export class AuthService {
                 })),
             },
         };
+    }
+
+    async solicitarReset(dto: SolicitarResetDto) {
+        const usuario = await this.prismaService.usuario.findUnique({
+            where: { email: dto.email },
+        });
+
+        // Por seguridad, SIEMPRE respondemos lo mismo exista o no el correo —
+        // así nadie puede usar este endpoint para "adivinar" qué correos están registrados.
+        if (usuario) {
+            const token = randomBytes(32).toString('hex');
+            await this.prismaService.tokenAcceso.create({
+                data: {
+                    usuarioId: usuario.id,
+                    token,
+                    tipo: 'RESET_PASSWORD',
+                    expiresAt: new Date(Date.now() + 60 * 60 * 1000), // 1 hora
+                },
+            });
+            await this.emailService.enviarResetPassword(dto.email, token);
+        }
+
+        return { message: 'Si el correo está registrado, recibirás un enlace para restablecer tu contraseña.' };
+    }
+
+    async resetearPassword(dto: ResetearPasswordDto) {
+        const tokenAcceso = await this.prismaService.tokenAcceso.findUnique({
+            where: { token: dto.token },
+        });
+
+        if (!tokenAcceso) {
+            throw new NotFoundException('El enlace no es válido.');
+        }
+        if (tokenAcceso.tipo !== 'RESET_PASSWORD') {
+            throw new BadRequestException('Este enlace no corresponde a un restablecimiento de contraseña.');
+        }
+        if (tokenAcceso.usedAt) {
+            throw new GoneException('Este enlace ya fue utilizado anteriormente.');
+        }
+        if (tokenAcceso.expiresAt < new Date()) {
+            throw new GoneException('El enlace ha expirado. Solicita uno nuevo.');
+        }
+
+        const hashedPassword = await bcrypt.hash(dto.nuevaPassword, 10);
+
+        await this.prismaService.$transaction([
+            this.prismaService.usuario.update({
+                where: { id: tokenAcceso.usuarioId },
+                data: { password: hashedPassword },
+            }),
+            this.prismaService.tokenAcceso.update({
+                where: { id: tokenAcceso.id },
+                data: { usedAt: new Date() },
+            }),
+        ]);
+
+        return { message: 'Contraseña restablecida exitosamente. Ya puedes iniciar sesión.' };
     }
 }
