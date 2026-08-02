@@ -8,13 +8,18 @@ import { APP_GUARD } from '@nestjs/core';
 import { MinioModule } from './minio/minio.module';
 import { ExpedientesModule } from './expedientes/expedientes.module';
 import { ConfigModule } from '@nestjs/config';
-import { CatalogoModule } from './catalogo/catalogo.module';
 import { ZonasGeograficasModule } from './zonas-geograficas/zonas-geograficas.module';
 import { NivelAcademicoModule } from './nivel-academico/nivel-academico.module';
 import { IngresosModule } from './ingresos/ingresos.module';
 import { EmailModule } from './email/email.module';
 import { UniversidadesModule } from './universidades/universidades.module';
 import { PersonasModule } from './personas/personas.module';
+import { SolicitudesIngresoModule } from './solicitud-ingreso/solicitudes-ingreso.module';
+import { TipoDocumentoModule } from './tipo-documento/tipo-documento.module';
+import { ProgramasModule } from './programas/programas.module';
+import { LapsosAcademicosModule } from './lapsos-academicos/lapsos-academicos.module';
+import { EntradaModule } from './entrada/entrada.module';
+import { ConvocatoriasModule } from './convocatorias/convocatorias.module';
 
 @Module({
   imports: [
@@ -34,13 +39,15 @@ import { PersonasModule } from './personas/personas.module';
     PrismaModule, 
     MinioModule, 
     ExpedientesModule, 
-    CatalogoModule, 
     ZonasGeograficasModule, 
     NivelAcademicoModule, 
     IngresosModule, 
     EmailModule, 
     UniversidadesModule, 
-    PersonasModule,
+    PersonasModule, 
+    SolicitudesIngresoModule, 
+    TipoDocumentoModule, 
+    ProgramasModule, LapsosAcademicosModule, EntradaModule, ConvocatoriasModule,
   ],
   controllers: [AppController],
   providers: [

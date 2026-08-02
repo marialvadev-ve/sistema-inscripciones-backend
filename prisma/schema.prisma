@@ -184,7 +184,7 @@ model Persona {
   updatedAt       DateTime     @updatedAt
 
   usuario         Usuario?
-  estudiante      Estudiante?
+  estudiantes     Estudiante[]
 }
 
 // ==========================================
@@ -225,7 +225,9 @@ model TipoIngreso {
 model Estudiante {
   id                    String                @id @default(uuid())
   persona               Persona               @relation(fields: [personaId], references: [id])
-  personaId             String                @unique
+  personaId             String
+  universidad           Universidad           @relation(fields: [universidadId], references: [id])
+  universidadId         String
   tipoIngreso           TipoIngreso           @relation(fields: [tipoIngresoId], references: [id])
   tipoIngresoId         String
 
@@ -239,11 +241,18 @@ model Estudiante {
   parroquiaNacimiento   Parroquia?            @relation("ParroquiaNacimiento", fields: [parroquiaNacimientoId], references: [id])
   parroquiaNacimientoId String?
 
+  expedienteCompleto        Boolean   @default(true)
+  excepcionAutorizadaPorId  String?
+  excepcionMotivo           String?
+  excepcionFecha            DateTime?
+
   createdAt             DateTime              @default(now())
   updatedAt             DateTime              @updatedAt
 
   condiciones           EstudianteCondicion[]
   solicitudes           SolicitudIngreso[]
+
+  @@unique([personaId, universidadId])
 }
 
 // ==========================================
@@ -261,7 +270,7 @@ model NivelAcademico {
 
 model ProgramaFormacion {
   id               String             @id @default(uuid())
-  codigo           String             @unique
+  codigo           String
   nombre           String
   descripcion      String?
   activo           Boolean            @default(true)
@@ -276,6 +285,8 @@ model ProgramaFormacion {
 
   createdAt        DateTime           @default(now())
   updatedAt        DateTime           @updatedAt
+
+  @@unique([universidadId, codigo])
 }
 
 // ==========================================
@@ -333,6 +344,7 @@ model SolicitudIngreso {
 
   estudiante         Estudiante?         @relation(fields: [estudianteId], references: [id])
   estudianteId       String?
+  observacionGeneral String?
   documentos         SolicitudDocumento[]
   createdAt          DateTime            @default(now())
   updatedAt          DateTime            @updatedAt
@@ -345,8 +357,6 @@ model Universidad {
   ubicacion   String?
   telefono    String?
   correo      String?
-  createdAt   DateTime @default(now())
-  updatedAt   DateTime @updatedAt
 
   programas       ProgramaFormacion[]
   usuarios        UsuarioUniversidad[]
@@ -355,6 +365,13 @@ model Universidad {
   convocatorias   ConvocatoriaIngreso[]
   origenesIngreso OrigenIngreso[]
   tiposIngreso    TipoIngreso[]
+  estudiantes     Estudiante[]
+  permiteExcepcionExpedienteIncompleto Boolean @default(true)
+  entradas         Entrada[]
+  lapsosAcademicos LapsoAcademico[]
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
 }
 
 model UsuarioUniversidad {
@@ -391,6 +408,7 @@ model TipoDocumento {
 enum EstadoDocumento {
   PENDIENTE
   SUBIDO
+  APROBADO
   RECHAZADO
 }
 
@@ -401,6 +419,9 @@ model SolicitudDocumento {
   tipoDocumento   TipoDocumento    @relation(fields: [tipoDocumentoId], references: [id])
   tipoDocumentoId String
   estado          EstadoDocumento  @default(PENDIENTE)
+  observacion     String?
+  revisadoPorId   String?
+  revisadoEn      DateTime?
   createdAt       DateTime         @default(now())
   updatedAt       DateTime         @updatedAt
 
@@ -408,7 +429,6 @@ model SolicitudDocumento {
 
   @@unique([solicitudId, tipoDocumentoId])
 }
-
 model DocumentoImagen {
   id                   String             @id @default(uuid())
   solicitudDocumento   SolicitudDocumento @relation(fields: [solicitudDocumentoId], references: [id], onDelete: Cascade)
@@ -416,4 +436,48 @@ model DocumentoImagen {
   key                  String
   orden                Int                @default(1)
   createdAt            DateTime           @default(now())
+}
+
+// ==========================================
+// LAPSOS ACADÉMICOS Y ENTRADAS (por universidad)
+// ==========================================
+
+model Entrada {
+  id            String           @id @default(uuid())
+  universidad   Universidad      @relation(fields: [universidadId], references: [id])
+  universidadId String
+  codigo        String
+  descripcion   String?
+  activo        Boolean          @default(true)
+  createdAt     DateTime         @default(now())
+  updatedAt     DateTime         @updatedAt
+
+  lapsosAcademicos LapsoAcademico[]
+
+  @@unique([universidadId, codigo])
+}
+
+enum TipoLapso {
+  PREGRADO
+  POSTGRADO
+  INTENSIVO
+  ESPECIAL
+}
+
+model LapsoAcademico {
+  id            String      @id @default(uuid())
+  universidad   Universidad @relation(fields: [universidadId], references: [id])
+  universidadId String
+  entrada       Entrada     @relation(fields: [entradaId], references: [id])
+  entradaId     String
+  codigo        String
+  descripcion   String?
+  fechaInicio   DateTime
+  fechaFin      DateTime
+  tipo          TipoLapso
+  activo        Boolean     @default(true)
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+
+  @@unique([universidadId, codigo])
 }
