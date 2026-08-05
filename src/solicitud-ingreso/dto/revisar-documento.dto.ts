@@ -1,7 +1,7 @@
-import { IsEnum, IsOptional, IsString } from 'class-validator';
+import { IsIn, IsOptional, IsString } from 'class-validator';
 
 export class RevisarDocumentoDto {
-  @IsEnum(['APROBADO', 'RECHAZADO'])
+  @IsIn(['APROBADO', 'RECHAZADO'])
   estado: 'APROBADO' | 'RECHAZADO';
 
   @IsOptional()

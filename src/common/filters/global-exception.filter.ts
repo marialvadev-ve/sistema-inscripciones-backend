@@ -32,6 +32,15 @@ export class GlobalExceptionFilter implements ExceptionFilter {
         const target = exception.meta?.target as string[];
         const field = target ? target[0] : 'registro';
         errors = { [field]: `El ${field} ya se encuentra registrado en el sistema.` };
+      } else if (exception.code === 'P2003') {
+        status = HttpStatus.BAD_REQUEST;
+        message = 'Referencia inválida';
+        const field = exception.meta?.field_name as string;
+        errors = { referencia: `El valor de '${field}' no corresponde a un registro existente.` };
+      } else if (exception.code === 'P2025') {
+        status = HttpStatus.NOT_FOUND;
+        message = 'Registro no encontrado';
+        errors = { causa: 'El registro que intentas actualizar o eliminar no existe.' };
       }
     } else {
       console.error('Error no controlado:', exception);
